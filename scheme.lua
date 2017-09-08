@@ -1,8 +1,18 @@
---
 -- Scheme interpreter in Lua
--- This code is in the public domain
--- Alex Sandro Queiroz e Silva <asandroq@gmail.com>
---
+-- Copyright (C) 2017  Zaoqi
+
+-- This program is free software: you can redistribute it and/or modify
+-- it under the terms of the GNU Affero General Public License as published
+-- by the Free Software Foundation, either version 3 of the License, or
+-- (at your option) any later version.
+
+-- This program is distributed in the hope that it will be useful,
+-- but WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-- GNU Affero General Public License for more details.
+
+-- You should have received a copy of the GNU Affero General Public License
+-- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 local l_pairs = pairs
 local l_type = type
@@ -676,7 +686,7 @@ local function write(exp, port)
    elseif is_procedure(exp) then
       l_write("#<procedure>")
    elseif is_string(exp) then
-      l_write("\""..l_tconcat(exp, "", 2).."\"")
+      l_write("\""..string2l_string(exp).."\"")
    elseif is_vector(exp) then
       l_write("#(")
       for i = 2, #exp do
@@ -699,6 +709,47 @@ local function newline(port)
    port:write("\r\n")
 
    return undef_obj
+end
+
+local function string2l_string(exp)
+	if is_string(exp) then
+		return l_tconcat(exp, "", 2)
+	else
+		l_error("Not a string")
+	end
+end
+
+local function table2list(t)
+	local r = nil_obj
+	for k, v in pairs(t) do
+		r = cons(cons(l2sv(k), l2sv(v)), r)
+	end
+end
+
+local function l2sv(v)
+	local t = type(v)
+	if t == "number" then
+		return v
+	elseif t == "string" then
+		return make_string(v)
+	elseif t == "nil" then
+		return nil_obj
+	elseif t == "boolean" then
+		if t then
+			return bool_true
+		else
+			return bool_false
+		end
+	elseif t == "table" then
+		return table2list(v)
+	else
+		l_error("Unknown Lua type")
+	end
+end
+
+local function eval_lua(exp)
+	local v = assert(loadstring("return (" .. string2l_string(exp) .. ")"))()
+	return l2sv(v)
 end
 
 local function eval(exp, env)
@@ -967,6 +1018,7 @@ add_primitive("length", length, 1)
 add_primitive("write", write, 1)
 add_primitive("newline", newline, 0)
 add_primitive("doc", doc, 1)
+add_primitive("eval-lua", eval_lua, 1)
 --
 -- Module interface
 --
