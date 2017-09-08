@@ -742,6 +742,8 @@ local function l2sv(v)
 		end
 	elseif t == "table" then
 		return table2list(v)
+	elseif t == "function" then
+		return make_primitive(v, -1)
 	else
 		l_error("Unknown Lua type")
 	end
