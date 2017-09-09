@@ -14,6 +14,10 @@
 -- You should have received a copy of the GNU Affero General Public License
 -- along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+local function l_eval(exp)
+	return assert(loadstring("return (" .. exp .. ")"))()
+end
+
 local l_pairs = pairs
 local l_type = type
 local l_error = error
@@ -849,10 +853,6 @@ local function s2lv(v)
 	else
 		l_error("Unknown Scheme type")
 	end
-end
-
-local function l_eval(exp)
-	return l_assert(l_loadstring("return (" .. exp .. ")"))()
 end
 
 local function apply_lua(f, ...)
