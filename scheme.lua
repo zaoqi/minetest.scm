@@ -28,6 +28,10 @@ local l_tonumber = tonumber
 local l_traceback = debug.traceback
 local l_setmetatable = setmetatable
 local l_tconcat = table.concat
+local l_loadstring = loadstring
+local l_assert = assert
+local l_type = type
+local l_ipairs = ipairs
 
 module("scheme")
 
@@ -722,16 +726,30 @@ end
 local function table2list(t)
 	local r = nil_obj
 	for k, v in pairs(t) do
-		r = cons(cons(l2sv(k), l2sv(v)), r)
+		r = cons(cons(l2sv(k, true), l2sv(v, false)), r)
 	end
 end
 
-local function l2sv(v)
-	local t = type(v)
+local function list2table(v)
+	if is_nil(v) then
+		return {}
+	end
+	local xs = list2table(cdr(v))
+	local p = car(v)
+	xs[car(p)] = s2lv(cdr(p))
+	return xs
+end
+
+local function l2sv(v, s)
+	local t = l_type(v)
 	if t == "number" then
 		return v
 	elseif t == "string" then
-		return make_string(v)
+		if s then
+			return v
+		else
+			return make_string(v)
+		end
 	elseif t == "nil" then
 		return nil_obj
 	elseif t == "boolean" then
@@ -741,17 +759,112 @@ local function l2sv(v)
 			return bool_false
 		end
 	elseif t == "table" then
-		return table2list(v)
+		if l_is_list(v) then
+			return l2list(v)
+		else
+			return table2list(v)
+		end
 	elseif t == "function" then
-		return make_primitive(v, -1)
+		return make_primitive(function(...)
+				local a = {}
+				for i, v in l_ipairs{...} do
+					a[i] = s2lv(v)
+				end
+				return l2sv(v(l_unpack(a)))
+			end
+		, -1)
 	else
 		l_error("Unknown Lua type")
 	end
 end
 
+local function is_table(v)
+	if is_nil(v) then
+		return true
+	end
+	if not is_pair(v) then
+		return false
+	end
+	local p = car(v)
+	return (is_pair(p) and is_symbol(car(p)) and is_table(cdr(p)))
+end
+
+local function is_list(v)
+	return (is_nil(v) or (is_pair(v) and is_list(cdr(v))))
+end
+
+local function l_is_list(v)
+	for i, v in pairs(v) do
+		if l_type(i) ~= "number" then
+			return false
+		end
+	end
+	return true
+end
+
+local function l2list(v)
+	local r = nil_obj
+	for i = 1, #v do
+		r = cons(l2sv(v[i]), r)
+	end
+	return r
+end
+
+local function list2l(rv)
+	local r = {}
+	local v = rv
+	while not is_nil(v) do
+		r[#r+1] = car(s2lv(v))
+		v = cdr(v)
+	end
+	return r
+end
+
+local function s2lv(v)
+	if is_primitive(v) then
+		return primitive_function(v)
+	elseif v == bool_true then
+		return true
+	elseif v == bool_false then
+		return false
+	elseif is_procedure(v) then
+		return (function (...)
+				local a = nil_obj
+				local xs = {...}
+				for i = #xs, 1, -1 do
+					a = cons(l2sv(x), a)
+				end
+				return eval(cons(v, a))
+			end)
+	elseif is_nil(v) then
+		return nil
+	elseif is_table(v) then
+		return list2table(v)
+	elseif is_list(v) then
+		return list2l(v)
+	elseif is_number(v) then
+		return v
+	elseif is_string(v) then
+		return string2l_string(v)
+	else
+		l_error("Unknown Scheme type")
+	end
+end
+
+local function l_eval(exp)
+	return l_assert(l_loadstring("return (" .. exp .. ")"))()
+end
+
+local function apply_lua(f, ...)
+	local a = {}
+	for i, v in l_ipairs{...} do
+		a[i] = s2lv(v)
+	end
+	return (l_eval(string2l_string(f)))(l_unpack(a))
+end
+
 local function eval_lua(exp)
-	local v = assert(loadstring("return (" .. string2l_string(exp) .. ")"))()
-	return l2sv(v)
+	return l2sv(l_eval(string2l_string(exp)))
 end
 
 local function eval(exp, env)
@@ -1021,6 +1134,8 @@ add_primitive("write", write, 1)
 add_primitive("newline", newline, 0)
 add_primitive("doc", doc, 1)
 add_primitive("eval-lua", eval_lua, 1)
+add_primitive("apply-lua", apply_lua, -1)
+add_primitive("list?", is_list, 1)
 --
 -- Module interface
 --
