@@ -37,8 +37,6 @@ local l_assert = assert
 local l_type = type
 local l_ipairs = ipairs
 
-module("scheme")
-
 -- the global environment
 local global_env = {}
 
@@ -824,6 +822,8 @@ local function list2l(rv)
 	return r
 end
 
+local eval = nil
+
 local function s2lv(v)
 	if is_primitive(v) then
 		return primitive_function(v)
@@ -867,7 +867,7 @@ local function eval_lua(exp)
 	return l2sv(l_eval(string2l_string(exp)))
 end
 
-local function eval(exp, env)
+eval = function(exp, env)
 
    local env = env or global_env
 
@@ -1141,7 +1141,7 @@ add_primitive("list?", is_list, 1)
 --
 
 -- loads files
-function load(fname)
+local function load(fname)
    local status, exp
 
    if (not fname) or fname == "" then
@@ -1183,7 +1183,7 @@ function load(fname)
 end
 
 -- the REPL
-function repl()
+local function repl()
    local function toplevel()
       local status, exp
       l_io_write("scheme> ")
@@ -1211,3 +1211,5 @@ function repl()
    end
    return toplevel()
 end
+
+return load, repl
